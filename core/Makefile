@@ -595,6 +595,12 @@ ifdef BOARD_KERNEL_PAGESIZE
   INTERNAL_BOOTIMAGE_ARGS += --pagesize $(BOARD_KERNEL_PAGESIZE)
 endif
 
+
+BOARD_KERNEL_OFFSET := $(strip $(BOARD_KERNEL_OFFSET))
+ifdef BOARD_KERNEL_OFFSET
+  INTERNAL_BOOTIMAGE_ARGS += --kernel_offset $(BOARD_KERNEL_OFFSET)
+endif
+
 ifeq ($(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_SUPPORTS_VERITY),true)
 ifeq ($(BOARD_BUILD_SYSTEM_ROOT_IMAGE),true)
 VERITY_KEYID := veritykeyid=id:`openssl x509 -in $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VERITY_SIGNING_KEY).x509.pem -text \
@@ -986,6 +992,10 @@ $(if $(BOARD_VENDORIMAGE_SQUASHFS_COMPRESSOR_OPT),$(hide) echo "vendor_squashfs_
 $(if $(BOARD_VENDORIMAGE_SQUASHFS_BLOCK_SIZE),$(hide) echo "vendor_squashfs_block_size=$(BOARD_VENDORIMAGE_SQUASHFS_BLOCK_SIZE)" >> $(1))
 $(if $(BOARD_VENDORIMAGE_SQUASHFS_DISABLE_4K_ALIGN),$(hide) echo "vendor_squashfs_disable_4k_align=$(BOARD_VENDORIMAGE_SQUASHFS_DISABLE_4K_ALIGN)" >> $(1))
 $(if $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VENDOR_BASE_FS_PATH),$(hide) echo "vendor_base_fs_file=$(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_VENDOR_BASE_FS_PATH)" >> $(1))
+$(if $(BOARD_ODMIMAGE_FILE_SYSTEM_TYPE),$(hide) echo "odm_fs_type=$(BOARD_ODMIMAGE_FILE_SYSTEM_TYPE)" >> $(1))
+$(if $(BOARD_ODMIMAGE_PARTITION_SIZE),$(hide) echo "odm_size=$(BOARD_ODMIMAGE_PARTITION_SIZE)" >> $(1))
+$(if $(BOARD_ODMIMAGE_JOURNAL_SIZE),$(hide) echo "odm_journal_size=$(BOARD_ODMIMAGE_JOURNAL_SIZE)" >> $(1))
+$(if $(BOARD_ODMIMAGE_EXTFS_INODE_COUNT),$(hide) echo "odm_extfs_inode_count=$(BOARD_ODMIMAGE_EXTFS_INODE_COUNT)" >> $(1))
 $(if $(BOARD_OEMIMAGE_PARTITION_SIZE),$(hide) echo "oem_size=$(BOARD_OEMIMAGE_PARTITION_SIZE)" >> $(1))
 $(if $(BOARD_OEMIMAGE_JOURNAL_SIZE),$(hide) echo "oem_journal_size=$(BOARD_OEMIMAGE_JOURNAL_SIZE)" >> $(1))
 $(if $(BOARD_OEMIMAGE_EXTFS_INODE_COUNT),$(hide) echo "oem_extfs_inode_count=$(BOARD_OEMIMAGE_EXTFS_INODE_COUNT)" >> $(1))
@@ -1130,6 +1140,9 @@ ifdef BOARD_KERNEL_BASE
 endif
 ifdef BOARD_KERNEL_PAGESIZE
   INTERNAL_RECOVERYIMAGE_ARGS += --pagesize $(BOARD_KERNEL_PAGESIZE)
+endif
+ifdef BOARD_KERNEL_OFFSET
+  INTERNAL_RECOVERYIMAGE_ARGS += --kernel_offset $(BOARD_KERNEL_OFFSET)
 endif
 
 # Keys authorized to sign OTA packages this build will accept.  The
@@ -1816,6 +1829,36 @@ INSTALLED_VENDORIMAGE_TARGET := $(PRODUCT_OUT)/vendor.img
 $(eval $(call copy-one-file,$(BOARD_PREBUILT_VENDORIMAGE),$(INSTALLED_VENDORIMAGE_TARGET)))
 endif
 
+
+# -----------------------------------------------------------------
+# odm partition image
+ifdef BOARD_ODMIMAGE_FILE_SYSTEM_TYPE
+INTERNAL_ODMIMAGE_FILES := \
+    $(filter $(TARGET_OUT_ODM)/%,$(ALL_DEFAULT_INSTALLED_MODULES))
+
+odmimage_intermediates := \
+    $(call intermediates-dir-for,PACKAGING,odm)
+BUILT_ODMIMAGE_TARGET := $(PRODUCT_OUT)/odm.img
+# We just build this directly to the install location.
+INSTALLED_ODMIMAGE_TARGET := $(BUILT_ODMIMAGE_TARGET)
+
+$(INSTALLED_ODMIMAGE_TARGET) : $(INTERNAL_USERIMAGES_DEPS) $(INTERNAL_ODMIMAGE_FILES)
+	$(call pretty,"Target odm fs image: $(INSTALLED_ODMIMAGE_TARGET)")
+	@mkdir -p $(TARGET_OUT_ODM)
+	@mkdir -p $(odmimage_intermediates) && rm -rf $(odmimage_intermediates)/odm_image_info.txt
+	$(call generate-userimage-prop-dictionary, $(odmimage_intermediates)/odm_image_info.txt, skip_fsck=true)
+	$(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH \
+	  ./build/tools/releasetools/build_image.py \
+	  $(TARGET_OUT_ODM) $(odmimage_intermediates)/odm_image_info.txt $(INSTALLED_ODMIMAGE_TARGET) $(TARGET_OUT)
+	$(hide) $(call assert-max-image-size,$(INSTALLED_ODMIMAGE_TARGET),$(BOARD_ODMIMAGE_PARTITION_SIZE))
+
+.PHONY: odm_image
+odm_image : $(INSTALLED_ODMIMAGE_TARGET)
+$(call dist-for-goals, odm_image, $(INSTALLED_ODMIMAGE_TARGET))
+
+endif
+
+
 # -----------------------------------------------------------------
 # dtbo image
 ifdef BOARD_PREBUILT_DTBOIMAGE
@@ -2180,6 +2223,9 @@ endif
 ifdef BOARD_KERNEL_PAGESIZE
 	$(hide) echo "$(BOARD_KERNEL_PAGESIZE)" > $(zip_root)/$(PRIVATE_RECOVERY_OUT)/pagesize
 endif
+ifdef BOARD_KERNEL_OFFSET
+	$(hide) echo "$(BOARD_KERNEL_OFFSET)" > $(zip_root)/$(PRIVATE_RECOVERY_OUT)/kernel_offset
+endif
 endif # INSTALLED_RECOVERYIMAGE_TARGET defined or BOARD_USES_RECOVERY_AS_BOOT is true
 	@# Components of the boot image
 	$(hide) mkdir -p $(zip_root)/BOOT
@@ -2207,6 +2253,9 @@ ifdef BOARD_KERNEL_BASE
 endif
 ifdef BOARD_KERNEL_PAGESIZE
 	$(hide) echo "$(BOARD_KERNEL_PAGESIZE)" > $(zip_root)/BOOT/pagesize
+endif
+ifdef BOARD_KERNEL_OFFSET
+	$(hide) echo "$(BOARD_KERNEL_OFFSET)" > $(zip_root)/BOOT/kernel_offset
 endif
 endif # BOARD_USES_RECOVERY_AS_BOOT
 	$(hide) $(foreach t,$(INSTALLED_RADIOIMAGE_TARGET),\

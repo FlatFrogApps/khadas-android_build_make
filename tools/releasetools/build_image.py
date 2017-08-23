@@ -691,6 +691,12 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
     copy_prop("oem_journal_size", "journal_size")
     copy_prop("has_ext4_reserved_blocks", "has_ext4_reserved_blocks")
     copy_prop("oem_extfs_inode_count", "extfs_inode_count")
+  elif mount_point == "odm":
+    copy_prop("fs_type", "fs_type")
+    copy_prop("odm_size", "partition_size")
+    copy_prop("odm_journal_size", "journal_size")
+    copy_prop("has_ext4_reserved_blocks", "has_ext4_reserved_blocks")
+    copy_prop("odm_extfs_inode_count", "extfs_inode_count")
   d["partition_name"] = mount_point
   return d
 
@@ -739,6 +745,8 @@ def main(argv):
       mount_point = "vendor"
     elif image_filename == "oem.img":
       mount_point = "oem"
+    elif image_filename == "odm.img":
+      mount_point = "odm"
     else:
       print >> sys.stderr, "error: unknown image file name ", image_filename
       exit(1)

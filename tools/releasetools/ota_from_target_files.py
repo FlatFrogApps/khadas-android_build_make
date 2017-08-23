@@ -274,6 +274,13 @@ def HasVendorPartition(target_files_zip):
   except KeyError:
     return False
 
+def HasOdmPartition(target_files_zip):
+  try:
+    target_files_zip.getinfo("ODM/")
+    return True
+  except KeyError:
+    return False
+
 
 def GetOemProperty(name, oem_props, oem_dict, info_dict):
   if oem_props is not None and name in oem_props:
@@ -498,6 +505,12 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
     vendor_tgt.ResetFileMap()
     vendor_diff = common.BlockDifference("vendor", vendor_tgt)
     vendor_diff.WriteScript(script, output_zip)
+
+  if HasOdmPartition(input_zip):
+    odm_tgt = GetImage("odm", OPTIONS.input_tmp)
+    odm_tgt.ResetFileMap()
+    odm_diff = common.BlockDifference("odm", odm_tgt)
+    odm_diff.WriteScript(script, output_zip)
 
   common.CheckSize(boot_img.data, "boot.img", OPTIONS.info_dict)
   common.ZipWriteStr(output_zip, "boot.img", boot_img.data)
