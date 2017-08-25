@@ -151,6 +151,7 @@ import zipfile
 import common
 import edify_generator
 import sparse_img
+import customer_img
 
 OPTIONS = common.OPTIONS
 OPTIONS.package_key = None
@@ -178,6 +179,7 @@ OPTIONS.cache_size = None
 OPTIONS.stash_threshold = 0.8
 OPTIONS.gen_verify = False
 OPTIONS.log_diff = None
+OPTIONS.ota_zip_check = True
 OPTIONS.payload_signer = None
 OPTIONS.payload_signer_args = []
 OPTIONS.extracted_input = None
@@ -305,7 +307,7 @@ def GetImage(which, tmpdir):
   map must already exist in tmpdir.
   """
 
-  assert which in ("system", "vendor")
+  assert which in ("system", "vendor", "odm")
 
   path = os.path.join(tmpdir, "IMAGES", which + ".img")
   mappath = os.path.join(tmpdir, "IMAGES", which + ".map")
@@ -376,6 +378,21 @@ def AddCompatibilityArchive(target_zip, output_zip, system_included=True,
                     compress_type=zipfile.ZIP_STORED)
 
 
+
+def ZipOtherImage(which, tmpdir, output):
+  """Returns an image object from IMAGES.
+
+  'which' partition eg "logo", "dtb". A prebuilt image and file
+  map must already exist in tmpdir.
+  """
+
+  amlogic_img_path = os.path.join(tmpdir, "IMAGES", which + ".img")
+  if os.path.exists(amlogic_img_path):
+    f = open(amlogic_img_path, "rb")
+    data = f.read()
+    f.close()
+    common.ZipWriteStr(output, which + ".img", data)
+
 def WriteFullOTAPackage(input_zip, output_zip):
   # TODO: how to determine this?  We don't know what version it will
   # be installed on top of. For now, we expect the API just won't
@@ -418,6 +435,16 @@ def WriteFullOTAPackage(input_zip, output_zip):
 
   AppendAssertions(script, OPTIONS.info_dict, oem_dicts)
   device_specific.FullOTA_Assertions()
+
+  if OPTIONS.ota_zip_check:
+    script.AppendExtra('if ota_zip_check() == "1" then')
+    script.AppendExtra('set_bootloader_env("upgrade_step", "3");')
+    script.AppendExtra('backup_data_cache(dtb, /cache/recovery/);')
+    script.AppendExtra('write_dtb_image(package_extract_file("dtb.img"));')
+    script.AppendExtra('backup_data_cache(recovery, /cache/recovery/);')
+    script.WriteRawImage("/recovery", "recovery.img")
+    script.AppendExtra('reboot_recovery();')
+    script.AppendExtra('else')
 
   # Two-step package strategy (in chronological order, which is *not*
   # the order in which the generated script has things):
@@ -518,11 +545,18 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   script.ShowProgress(0.05, 5)
   script.WriteRawImage("/boot", "boot.img")
 
-  script.ShowProgress(0.2, 10)
-  device_specific.FullOTA_InstallEnd()
-
   if OPTIONS.extra_script is not None:
     script.AppendExtra(OPTIONS.extra_script)
+
+  ZipOtherImage("logo", OPTIONS.input_tmp, output_zip)
+  ZipOtherImage("dtb", OPTIONS.input_tmp, output_zip)
+  ZipOtherImage("bootloader", OPTIONS.input_tmp, output_zip)
+  ZipOtherImage("recovery", OPTIONS.input_tmp, output_zip)
+
+  customer_img.Buildimage(script, OPTIONS.info_dict, OPTIONS.input_tmp, input_zip, output_zip)
+
+  script.ShowProgress(0.2, 10)
+  device_specific.FullOTA_InstallEnd()
 
   script.UnmountAll()
 
@@ -548,6 +582,9 @@ endif;
 """ % bcb_dev)
 
   script.SetProgress(1)
+  if OPTIONS.ota_zip_check:
+    script.AppendExtra('endif;')
+
   script.AddToZip(input_zip, output_zip, input_path=OPTIONS.updater_binary)
   metadata["ota-required-cache"] = str(script.required_cache)
   WriteMetadata(metadata, output_zip)

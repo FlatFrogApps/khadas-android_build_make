@@ -697,6 +697,9 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
     copy_prop("odm_journal_size", "journal_size")
     copy_prop("has_ext4_reserved_blocks", "has_ext4_reserved_blocks")
     copy_prop("odm_extfs_inode_count", "extfs_inode_count")
+  else:
+    copy_prop(mount_point + "_fs_type", "fs_type")
+    copy_prop(mount_point + "_size", "partition_size")
   d["partition_name"] = mount_point
   return d
 

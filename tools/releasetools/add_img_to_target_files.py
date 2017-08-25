@@ -167,6 +167,21 @@ def AddVendor(output_zip, prefix="IMAGES/"):
   return img.name
 
 
+def AddOthor(output_zip, name, prefix="IMAGES/"):
+  """Turn the contents of partition into a partition image and store in it
+  output_zip."""
+
+  img = OutputFile(output_zip, OPTIONS.input_tmp, prefix, name+".img")
+  if os.path.exists(img.input_name):
+    print("%s.img already exists in %s, no need to rebuild..." % (name, prefix))
+    return img.input_name
+
+  block_list = OutputFile(output_zip, OPTIONS.input_tmp, prefix, name+".map")
+  CreateImage(OPTIONS.input_tmp, OPTIONS.info_dict, name, img,
+              block_list=block_list)
+  return img.name
+
+
 def CreateImage(input_dir, info_dict, what, output_file, block_list=None):
   print("creating " + what + ".img...")
 
@@ -389,6 +404,7 @@ def AddImagesToTargetFiles(filename):
       sys.exit(1)
 
   has_vendor = os.path.isdir(os.path.join(OPTIONS.input_tmp, "VENDOR"))
+  has_odm = os.path.isdir(os.path.join(OPTIONS.input_tmp, "ODM"))
   has_system_other = os.path.isdir(os.path.join(OPTIONS.input_tmp,
                                                 "SYSTEM_OTHER"))
 
@@ -487,6 +503,13 @@ def AddImagesToTargetFiles(filename):
   # VENDOR_IMAGES/ to IMAGES/ and make sure we have all the needed
   # images ready under IMAGES/. All images should have '.img' as extension.
   banner("radio")
+  if has_odm:
+    AddOthor(output_zip, "odm")
+  if OPTIONS.info_dict.get("build_user_parts", None) == "true":
+    partsList = OPTIONS.info_dict.get("user_parts_list");
+    for list_i in partsList.split(' '):
+      banner(list_i)
+      AddOthor(output_zip, list_i)
   ab_partitions = os.path.join(OPTIONS.input_tmp, "META", "ab_partitions.txt")
   if os.path.exists(ab_partitions):
     with open(ab_partitions, 'r') as f:

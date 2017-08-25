@@ -1037,6 +1037,17 @@ ifneq (,$(INSTALLED_RECOVERYIMAGE_TARGET)$(filter true,$(BOARD_USES_RECOVERY_AS_
 INTERNAL_RECOVERYIMAGE_FILES := $(filter $(TARGET_RECOVERY_OUT)/%, \
     $(ALL_DEFAULT_INSTALLED_MODULES))
 
+recovery_amlogic_initrc := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery/init.recovery.*.rc))
+ifneq ($(recovery_amlogic_initrc),)
+  recovery_amlogic_initrc := $(recovery_amlogic_initrc)
+endif
+
+recovery_sh := $(TARGET_OUT)/bin/sh
+custom_recovery_sh := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery/sh))
+ifneq ($(custom_recovery_sh),)
+  recovery_sh := $(custom_recovery_sh)
+endif
+
 recovery_initrc := $(call include-path-for, recovery)/etc/init.rc
 recovery_sepolicy := \
     $(TARGET_RECOVERY_ROOT_OUT)/sepolicy \
@@ -1088,6 +1099,9 @@ TARGET_PRIVATE_RES_DIRS := $(wildcard $(TARGET_DEVICE_DIR)/recovery/res)
 endif
 recovery_resource_deps := $(shell find $(recovery_resources_common) \
   $(TARGET_PRIVATE_RES_DIRS) -type f)
+recovery_kl := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery/recovery.kl))
+
+TARGET_RECOVERY_FSTAB := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery/recovery.fstab))
 ifdef TARGET_RECOVERY_FSTAB
 recovery_fstab := $(TARGET_RECOVERY_FSTAB)
 else
@@ -1125,6 +1139,17 @@ endif
 ifeq ($(recovery_fstab),)
   $(info No recovery.fstab for TARGET_DEVICE $(TARGET_DEVICE))
 endif
+
+recovery_busybox := $(PRODUCT_OUT)/utilities/busybox
+custom_recovery_busybox := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery/busybox))
+ifneq ($(custom_recovery_busybox),)
+  recovery_busybox := $(custom_recovery_busybox)
+endif
+
+recovery_remote := $(strip $(wildcard $(TARGET_DEVICE_DIR)/recovery/remotecfg))
+recovery_remote_conf := $(strip $(wildcard $(TARGET_DEVICE_DIR)/files/remote.conf))
+recovery_systemcontrol := $(PRODUCT_OUT)/utilities/systemcontrol_static
+recovery_mesondisplay_cfg := $(strip $(wildcard $(TARGET_DEVICE_DIR)/files/mesondisplay.cfg))
 
 INTERNAL_RECOVERYIMAGE_ARGS := \
 	$(addprefix --second ,$(INSTALLED_2NDBOOTLOADER_TARGET)) \
@@ -1206,6 +1231,15 @@ define build-recoveryimage-target
   $(if $(strip $(recovery_wipe)), \
     $(hide) cp -f $(recovery_wipe) $(TARGET_RECOVERY_ROOT_OUT)/etc/recovery.wipe)
   $(hide) cp $(RECOVERY_INSTALL_OTA_KEYS) $(TARGET_RECOVERY_ROOT_OUT)/res/keys
+  $(hide) -cp  $(recovery_amlogic_initrc) $(TARGET_RECOVERY_ROOT_OUT)
+  $(hide) -cp -f $(recovery_kl) $(TARGET_RECOVERY_ROOT_OUT)/etc/recovery.kl
+  $(hide) -cp -f $(recovery_mesondisplay_cfg) $(TARGET_RECOVERY_ROOT_OUT)/etc/
+  $(hide) -cp -f $(recovery_remote_conf) $(TARGET_RECOVERY_ROOT_OUT)/etc/
+  $(hide) -cp -f $(recovery_busybox) $(TARGET_RECOVERY_ROOT_OUT)/sbin/
+  $(hide) -cp -f $(recovery_remote) $(TARGET_RECOVERY_ROOT_OUT)/sbin/
+  $(hide) -cp -f $(recovery_systemcontrol) $(TARGET_RECOVERY_ROOT_OUT)/sbin/
+  $(hide) -cp -f $(recovery_sh) $(TARGET_RECOVERY_ROOT_OUT)/sbin/
+  $(if $(recovery_usb3_ko), $(hide) -cp -f $(recovery_usb3_ko) $(TARGET_RECOVERY_ROOT_OUT)/boot/)
   $(hide) cat $(INSTALLED_DEFAULT_PROP_TARGET) \
           > $(TARGET_RECOVERY_ROOT_OUT)/prop.default
   $(if $(INSTALLED_VENDOR_DEFAULT_PROP_TARGET), \
@@ -1258,6 +1292,7 @@ $(INSTALLED_BOOTIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
 		$(recovery_build_props) $(recovery_resource_deps) \
 		$(recovery_fstab) \
 		$(RECOVERY_INSTALL_OTA_KEYS) \
+		$(recovery_sh) \
 		$(INSTALLED_VENDOR_DEFAULT_PROP_TARGET) \
 		$(BOARD_RECOVERY_KERNEL_MODULES) \
 		$(DEPMOD)
@@ -1976,7 +2011,9 @@ ifeq ($(TARGET_NO_KERNEL),true)
 build_ota_package := false
 endif
 ifeq ($(recovery_fstab),)
+ifneq ($(AB_OTA_UPDATER),true)
 build_ota_package := false
+endif
 endif
 ifeq ($(TARGET_BUILD_PDK),true)
 build_ota_package := false
@@ -2176,6 +2213,7 @@ endef
 # directories are up-to-date.
 $(BUILT_TARGET_FILES_PACKAGE): \
 		$(INSTALLED_BOOTIMAGE_TARGET) \
+		$(INSTALLED_AML_USER_IMAGES) \
 		$(INSTALLED_RADIOIMAGE_TARGET) \
 		$(INSTALLED_RECOVERYIMAGE_TARGET) \
 		$(FULL_SYSTEMIMAGE_DEPS) \
@@ -2290,12 +2328,32 @@ endif
 	@# build them.
 	$(hide) mkdir -p $(zip_root)/META
 	$(hide) cp $(APKCERTS_FILE) $(zip_root)/META/apkcerts.txt
+ifeq ($(BOARD_USES_ODMIMAGE),true)
+	$(hide) mkdir -p $(zip_root)/ODM
+	$(hide) $(call package_files-copy-root, \
+		$(TARGET_OUT_DATA),$(zip_root)/ODM)
+endif
+ifeq ($(TARGET_BUILD_USER_PARTS),true)
+	$(hide) $(foreach userPartName, $(BOARD_USER_PARTS_NAME),\
+		$(eval userPartDir := $$($(userPartName)_PART_DIR)) \
+		mkdir -p $(zip_root)/$(shell echo $(userPartName) | tr '[a-z]' '[A-Z]') && $(ACP) -rfd $(userPartDir)/* $(zip_root)/$(shell echo $(userPartName) | tr '[a-z]' '[A-Z]'); \
+		)
+	$(hide) echo "user_parts_list=$(BOARD_USER_PARTS_NAME)" > $(zip_root)/META/misc_info.txt
+	$(hide) echo "build_user_parts=$(TARGET_BUILD_USER_PARTS)" >> $(zip_root)/META/misc_info.txt
+	$(hide) echo "upgrade_parts_image=$(TARGET_UPGRADE_PARTS_IMAGE)" >> $(zip_root)/META/misc_info.txt
+	$(hide) $(foreach userPartName, $(BOARD_USER_PARTS_NAME),\
+	$(eval tmp_size=$$($(userPartName)_PART_SIZE)) \
+	$(eval tmp_fs_type=$$($(userPartName)_PART_TYPE)) \
+	echo "$(userPartName)_size=$(tmp_size)" >> $(zip_root)/META/misc_info.txt; \
+	echo "$(userPartName)_fs_type=$(tmp_fs_type)" >> $(zip_root)/META/misc_info.txt; \
+	)
+endif
 ifneq ($(tool_extension),)
 	$(hide) cp $(PRIVATE_TOOL_EXTENSION) $(zip_root)/META/
 endif
 	$(hide) echo "$(PRODUCT_OTA_PUBLIC_KEYS)" > $(zip_root)/META/otakeys.txt
 	$(hide) cp $(SELINUX_FC) $(zip_root)/META/file_contexts.bin
-	$(hide) echo "recovery_api_version=$(PRIVATE_RECOVERY_API_VERSION)" > $(zip_root)/META/misc_info.txt
+	$(hide) echo "recovery_api_version=$(PRIVATE_RECOVERY_API_VERSION)" >> $(zip_root)/META/misc_info.txt
 	$(hide) echo "fstab_version=$(PRIVATE_RECOVERY_FSTAB_VERSION)" >> $(zip_root)/META/misc_info.txt
 ifdef BOARD_FLASH_BLOCK_SIZE
 	$(hide) echo "blocksize=$(BOARD_FLASH_BLOCK_SIZE)" >> $(zip_root)/META/misc_info.txt
@@ -2405,9 +2463,18 @@ ifeq ($(BREAKPAD_GENERATE_SYMBOLS),true)
 	@# If breakpad symbols have been generated, add them to the zip.
 	$(hide) $(ACP) -r $(TARGET_OUT_BREAKPAD) $(zip_root)/BREAKPAD
 endif
-ifdef BOARD_PREBUILT_VENDORIMAGE
 	$(hide) mkdir -p $(zip_root)/IMAGES
+ifdef BOARD_PREBUILT_VENDORIMAGE
 	$(hide) cp $(INSTALLED_VENDORIMAGE_TARGET) $(zip_root)/IMAGES/
+endif
+ifneq ($(INSTALLED_AMLOGIC_BOOTLOADER_TARGET),)
+	$(hide) $(ACP) $(INSTALLED_AMLOGIC_BOOTLOADER_TARGET) $(zip_root)/IMAGES/bootloader.img
+endif
+ifneq ($(INSTALLED_AML_LOGO),)
+	$(hide) $(ACP) $(INSTALLED_AML_LOGO) $(zip_root)/IMAGES/
+endif
+ifeq ($(strip $(TARGET_OTA_UPDATE_DTB)),true)
+	$(hide) $(ACP) $(INSTALLED_BOARDDTB_TARGET) $(zip_root)/IMAGES/
 endif
 	@# Run fs_config on all the system, vendor, boot ramdisk,
 	@# and recovery ramdisk files in the zip, and save the output
@@ -2476,12 +2543,15 @@ INTERNAL_OTA_PACKAGE_TARGET := $(PRODUCT_OUT)/$(name).zip
 
 $(INTERNAL_OTA_PACKAGE_TARGET): KEY_CERT_PAIR := $(DEFAULT_KEY_CERT_PAIR)
 
+EXTRA_SCRIPT := $(TARGET_DEVICE_DIR)/../common/recovery/updater-script
+
 $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) \
 		build/tools/releasetools/ota_from_target_files
 	@echo "Package OTA: $@"
 	$(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH MKBOOTIMG=$(MKBOOTIMG) \
 	   ./build/tools/releasetools/ota_from_target_files -v \
 	   --block \
+	   --extra_script=$(EXTRA_SCRIPT) \
 	   --extracted_input_target_files $(patsubst %.zip,%,$(BUILT_TARGET_FILES_PACKAGE)) \
 	   -p $(HOST_OUT) \
 	   -k $(KEY_CERT_PAIR) \
