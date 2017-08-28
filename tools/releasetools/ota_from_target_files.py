@@ -166,6 +166,7 @@ OPTIONS.worker_threads = multiprocessing.cpu_count() // 2
 if OPTIONS.worker_threads == 0:
   OPTIONS.worker_threads = 1
 OPTIONS.two_step = False
+OPTIONS.partition_change = False
 OPTIONS.no_signing = False
 OPTIONS.block_based = True
 OPTIONS.updater_binary = None
@@ -179,7 +180,7 @@ OPTIONS.cache_size = None
 OPTIONS.stash_threshold = 0.8
 OPTIONS.gen_verify = False
 OPTIONS.log_diff = None
-OPTIONS.ota_zip_check = True
+OPTIONS.ota_zip_check = False
 OPTIONS.payload_signer = None
 OPTIONS.payload_signer_args = []
 OPTIONS.extracted_input = None
@@ -467,7 +468,11 @@ def WriteFullOTAPackage(input_zip, output_zip):
   #    (allow recovery to mark itself finished and reboot)
 
   recovery_img = common.GetBootableImage("recovery.img", "recovery.img",
-                                         OPTIONS.input_tmp, "RECOVERY")
+                                       OPTIONS.input_tmp, "RECOVERY")
+  if OPTIONS.partition_change:
+    script.AppendExtra("""
+if get_update_stage() == "1" then
+""")
   if OPTIONS.two_step:
     if not OPTIONS.info_dict.get("multistage_support", None):
       assert False, "two-step packages not supported by this build"
@@ -551,7 +556,8 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   ZipOtherImage("logo", OPTIONS.input_tmp, output_zip)
   ZipOtherImage("dtb", OPTIONS.input_tmp, output_zip)
   ZipOtherImage("bootloader", OPTIONS.input_tmp, output_zip)
-  ZipOtherImage("recovery", OPTIONS.input_tmp, output_zip)
+  if not OPTIONS.two_step:
+    ZipOtherImage("recovery", OPTIONS.input_tmp, output_zip)
 
   customer_img.Buildimage(script, OPTIONS.info_dict, OPTIONS.input_tmp, input_zip, output_zip)
 
@@ -564,6 +570,21 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
     script.ShowProgress(0.1, 10)
     script.FormatPartition("/data")
 
+  if OPTIONS.partition_change:
+    script.AppendExtra("""
+wipe_cache();
+set_bootloader_env("firstboot", "1");
+set_update_stage("0");
+else
+write_dtb_image(package_extract_file("dtb.img"));
+package_extract_file("dtb.img", "/cache/recovery/dtb.img");
+package_extract_file("recovery.img", "/cache/recovery/recovery.img");
+set_update_stage("1");
+set_bootloader_env("upgrade_step", "3");
+backup_env_partition();
+reboot_now("/dev/block/misc", "");
+endif;
+""")
   if OPTIONS.two_step:
     script.AppendExtra("""
 set_stage("%(bcb_dev)s", "");
@@ -1345,6 +1366,8 @@ def main(argv):
                          "integers are allowed." % (a, o))
     elif o in ("-2", "--two_step"):
       OPTIONS.two_step = True
+    elif o == "--partition_change":
+      OPTIONS.partition_change = True
     elif o == "--no_signing":
       OPTIONS.no_signing = True
     elif o == "--verify":
@@ -1389,6 +1412,7 @@ def main(argv):
                                  "extra_script=",
                                  "worker_threads=",
                                  "two_step",
+                                 "partition_change",
                                  "no_signing",
                                  "block",
                                  "binary=",
