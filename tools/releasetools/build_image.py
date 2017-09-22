@@ -626,6 +626,7 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
     # Copy the generic system fs type first, override with specific one if
     # available.
     copy_prop("system_fs_type", "fs_type")
+    copy_prop("timestamp", "timestamp")
     copy_prop("system_headroom", "partition_headroom")
     copy_prop("system_size", "partition_size")
     copy_prop("system_journal_size", "journal_size")
@@ -672,6 +673,7 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
     copy_prop("cache_size", "partition_size")
   elif mount_point == "vendor":
     copy_prop("vendor_fs_type", "fs_type")
+    copy_prop("timestamp", "timestamp")
     copy_prop("vendor_size", "partition_size")
     copy_prop("vendor_journal_size", "journal_size")
     copy_prop("vendor_verity_block_device", "verity_block_device")
