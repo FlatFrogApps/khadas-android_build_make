@@ -2286,7 +2286,9 @@ ifdef INSTALLED_2NDBOOTLOADER_TARGET
 endif
 ifneq ($(findstring second,$(BOARD_MKBOOTIMG_ARGS)),)
 	$(hide) $(ACP) $(INSTALLED_BOARDDTB_TARGET) $(zip_root)/BOOT/second
+ifneq ($(TARGET_NO_RECOVERY), true)
 	$(hide) $(ACP) $(INSTALLED_BOARDDTB_TARGET) $(zip_root)/RECOVERY/second
+endif
 endif
 ifdef INTERNAL_KERNEL_CMDLINE
 	$(hide) echo "$(INTERNAL_KERNEL_CMDLINE)" > $(zip_root)/BOOT/cmdline
