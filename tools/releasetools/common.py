@@ -256,6 +256,12 @@ def LoadBuildProp(read_helper):
   except KeyError:
     print("Warning: could not find SYSTEM/build.prop in %s" % (zip,))
     data = ""
+
+  try:
+    data += read_helper("VENDOR/build.prop")
+  except KeyError:
+    print("Warning: could not find VENDOR/build.prop in %s" % (zip,))
+
   return LoadDictionaryFromLines(data.split("\n"))
 
 
