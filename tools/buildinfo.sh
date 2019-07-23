@@ -54,7 +54,7 @@ echo "ro.build.product=$TARGET_DEVICE"
 
 echo "# Do not try to parse description, fingerprint, or thumbprint"
 echo "ro.build.description=$PRIVATE_BUILD_DESC"
-echo "ro.build.fingerprint=$BUILD_FINGERPRINT"
+echo "ro.build.fingerprint=OnePlus/OnePlus6/OnePlus6:8.1.0/OPM1.171019.011/06140300:user/release-keys"
 if [ -n "$BUILD_THUMBPRINT" ] ; then
   echo "ro.build.thumbprint=$BUILD_THUMBPRINT"
 fi
