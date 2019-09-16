@@ -2196,6 +2196,11 @@ $(eval _footer_args := $(PART)_FOOTER_ARGS)
 $(eval $($(_footer_args)) += --rollback_index $($(_rollback_index)))
 endef
 
+ifdef BOARD_AVB_METADATA_BIN_PATH
+INTERNAL_AVB_MAKE_VBMETA_IMAGE_ARGS += \
+    --public_key_metadata $(BOARD_AVB_METADATA_BIN_PATH)
+endif
+
 ifdef BOARD_AVB_BOOT_KEY_PATH
 $(eval $(call check-and-set-avb-chain-args,BOOT))
 else
