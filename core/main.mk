@@ -238,6 +238,7 @@ endif
 
 ifeq ($(strip $(BUILD_WITH_GOOGLE_GMS_EXPRESS)),true)
 ADDITIONAL_BUILD_PROPERTIES += ro.base_build=noah
+ADDITIONAL_BUILD_PROPERTIES += ro.com.google.acsa=true
 endif
 
 # -----------------------------------------------------------------
