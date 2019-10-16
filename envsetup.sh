@@ -283,6 +283,8 @@ function setpaths()
 
     unset ANDROID_TARGET_OUT_TESTCASES
     export ANDROID_TARGET_OUT_TESTCASES=$(get_abs_build_var TARGET_OUT_TESTCASES)
+    unset TARGET_BOARD_PLATFORM_GPU
+    export TARGET_BOARD_PLATFORM_GPU=$(get_build_var TARGET_BOARD_PLATFORM_GPU)
 
     # needed for building linux on MacOS
     # TODO: fix the path
