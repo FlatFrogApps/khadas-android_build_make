@@ -523,7 +523,7 @@ endif
 	        echo "#" >> $@;
 	$(hide) echo ro.bootimage.build.date=`$(DATE_FROM_FILE)`>>$@
 	$(hide) echo ro.bootimage.build.date.utc=`$(DATE_FROM_FILE) +%s`>>$@
-	$(hide) echo ro.bootimage.build.fingerprint="$(BUILD_FINGERPRINT_FROM_FILE)">>$@
+	$(hide) echo ro.bootimage.build.fingerprint="$(BUILD_FINGERPRINT)">>$@
 	$(hide) echo "#" >> $@; \
 	        echo "# ADDITIONAL VENDOR BUILD PROPERTIES" >> $@; \
 	        echo "#" >> $@;
