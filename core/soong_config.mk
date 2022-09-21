@@ -1,7 +1,7 @@
 SOONG_MAKEVARS_MK := $(SOONG_OUT_DIR)/make_vars-$(TARGET_PRODUCT).mk
 SOONG_VARIABLES := $(SOONG_OUT_DIR)/soong.variables
 SOONG_ANDROID_MK := $(SOONG_OUT_DIR)/Android-$(TARGET_PRODUCT).mk
-
+CAMERA_WITHOUT_GRALLOC4 ?= false
 BINDER32BIT :=
 ifneq ($(TARGET_USES_64_BIT_BINDER),true)
 ifneq ($(TARGET_IS_64_BIT),true)
@@ -210,6 +210,8 @@ $(call add_json_bool, CameraSupportHDMI, 		 $(filter true,$(CAMERA_SUPPORT_HDMI)
 $(call add_json_bool, CameraSupportHDMISubVideo, 	 $(filter true,$(CAMERA_SUPPORT_HDMI_SUBVIDEO)))
 $(call add_json_bool, CameraSupportOSD, 		 $(filter true,$(CAMERA_SUPPORT_OSD)))
 $(call add_json_bool, CameraSupportSubDevice, 	 	 $(filter true,$(CAMERA_SUPPORT_SUBDEVICE)))
+$(call add_json_bool, CameraWithGralloc4, 	 	 $(filter-out true,$(CAMERA_WITHOUT_GRALLOC4)))
+$(call add_json_bool, CameraWithOutGralloc4, 	 	 $(filter true,$(CAMERA_WITHOUT_GRALLOC4)))
 
 $(call add_json_list, ManifestPackageNameOverrides,      $(PRODUCT_MANIFEST_PACKAGE_NAME_OVERRIDES))
 $(call add_json_list, PackageNameOverrides,              $(PRODUCT_PACKAGE_NAME_OVERRIDES))
